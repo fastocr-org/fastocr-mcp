@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.fastocr-org/fastocr-mcp",
+  "title": "FastOCR",
+  "description": "OCR scanned PDFs and images into text or searchable PDFs with the FastOCR API.",
+  "websiteUrl": "https://fastocr.org/docs",
+  "repository": {
+    "url": "https://github.com/fastocr-org/fastocr-mcp",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "fastocr-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "FASTOCR_API_KEY",
+          "description": "FastOCR API key from https://fastocr.org/developers/keys",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}
