@@ -4,6 +4,11 @@ All notable changes to this server are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org).
 
+## [0.1.1] - 2026-10-25
+
+Documentation only: a redesigned README with setup for Claude Code, Claude Desktop, Cursor
+and VS Code first. No code changes.
+
 ## [0.1.0] - 2026-10-24
 
 First release. A stdio MCP server for the FastOCR Document OCR API with the tools
