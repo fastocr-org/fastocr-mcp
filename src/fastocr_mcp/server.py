@@ -7,6 +7,7 @@ from typing import Annotated, Any, Callable, Dict, Literal, Optional
 from fastocr_sdk import (
     AsyncFastOCR,
     AuthenticationError,
+    Balance,
     DocumentFailedError,
     DocumentJob,
     FastOCRError,
@@ -23,7 +24,7 @@ from ._version import __version__
 
 DOCS_URL = "https://fastocr.org/docs"
 KEYS_URL = "https://fastocr.org/developers/keys"
-BUY_PAGES_URL = f"{KEYS_URL}#buy-api-pages"
+BUY_PAGES_URL = "https://fastocr.org/pricing?from=api#packs"
 MAX_INLINE_CHARS = 20_000
 # Stay under the 60 s request timeout many MCP clients use; longer documents are resumed with get_document.
 WAIT_SECONDS = 45.0
@@ -42,8 +43,8 @@ def default_client() -> AsyncFastOCR:
 INSTRUCTIONS = f"""\
 FastOCR extracts text from scanned PDFs and images and makes searchable PDFs, in 100+ languages.
 Use ocr_file for a local PDF, PNG, JPG, GIF, WebP or BMP file; pass an absolute path. Every processed
-page (an image is one page) uses one page of the account's FastOCR API allowance, so do not OCR the
-same file twice. The server reads the API key
+page (an image is one page) uses one page of the account's FastOCR page balance, so do not OCR the
+same file twice. Use get_balance to see how many pages are left. The server reads the API key
 from the FASTOCR_API_KEY environment variable. Docs: {DOCS_URL}"""
 
 DocumentId = Annotated[str, Field(description="The document id returned by ocr_file or list_documents.")]
@@ -69,14 +70,14 @@ def explain(error: FastOCRError) -> str:
     if error.code == "buy_pages":
         document = f" (document {error.document_id})" if isinstance(error, DocumentFailedError) else ""
         return (
-            f"The FastOCR account is out of API pages{document}. Buy pages at {BUY_PAGES_URL}, "
+            f"The FastOCR account is out of pages{document}. Buy pages at {BUY_PAGES_URL}, "
             "then run ocr_file again."
         )
     if error.code == "concurrency_limit":
         return (
             "Too many documents are already processing for this FastOCR account. Wait until one "
-            "finishes (check list_documents), then try again. Accounts with purchased API pages can "
-            f"process more documents at once: {KEYS_URL}"
+            "finishes (check list_documents), then try again. Accounts with an API contract or 10,000 or "
+            f"more pages bought can process 10 documents at once: {BUY_PAGES_URL}"
         )
     if isinstance(error, RateLimitError):
         wait = int(error.retry_after) if error.retry_after else 60
@@ -109,12 +110,25 @@ def _summary(job: DocumentJob) -> Dict[str, Any]:
     return summary
 
 
+def _balance_summary(balance: Balance) -> Dict[str, Any]:
+    return {
+        "pages_remaining": balance.pages_remaining,
+        "free_pages_remaining": balance.free_pages_remaining,
+        "free_pages_per_month": balance.free_pages_per_month,
+        "free_pages_reset_at": balance.free_pages_reset_at,
+        "contract_pages_remaining": balance.contract_pages_remaining,
+        "contract_pages_per_month": balance.contract_pages_per_month,
+        "statement_pages_remaining": balance.statement_pages_remaining,
+        "buy_pages_url": BUY_PAGES_URL,
+    }
+
+
 def _partial_note(job: DocumentJob) -> str:
     if not job.is_partial:
         return ""
     return (
         f"\nNote: only {job.pages_billed} of {job.pages_total} pages were processed because the account "
-        f"ran out of API pages. Buy pages at {BUY_PAGES_URL} and run ocr_file again to process the whole file."
+        f"ran out of pages. Buy pages at {BUY_PAGES_URL} and run ocr_file again to process the whole file."
     )
 
 
@@ -231,7 +245,7 @@ def create_server(client_factory: ClientFactory = default_client) -> MCPServer:
         written to output_path or to <file>.ocr.txt next to the input file. With
         output='pdf' the searchable PDF is saved to output_path or to <file>.searchable.pdf
         next to the input file. Either default file replaces an earlier result with the
-        same name. Each processed page uses one page of the account's API allowance; an
+        same name. Each processed page uses one page of the account's balance; an
         image is one page. Large documents take longer: then this returns a document id,
         and get_document with the same output fetches the result. Never call ocr_file
         again for that file, which bills it again.
@@ -290,6 +304,23 @@ def create_server(client_factory: ClientFactory = default_client) -> MCPServer:
             if not page.documents:
                 return "No documents in this FastOCR account yet."
             return "\n".join(_format(_summary(job)) for job in page.documents)
+
+        result: str = await run(action)
+        return result
+
+    @server.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=True))
+    async def get_balance() -> str:
+        """Get how many pages the FastOCR account can still process. Costs no pages.
+
+        Documents spend free pages first (they reset monthly), then contract pages, then
+        Page Packs. pages_remaining counts the Page Packs only, so add the free and
+        contract pages for the total. contract_* are omitted without an API contract.
+        statement_pages_remaining is a separate balance that OCR does not spend. Check this
+        before OCRing a large PDF; buy_pages_url is where to add pages.
+        """
+
+        async def action(client: AsyncFastOCR) -> str:
+            return _format(_balance_summary(await client.get_balance()))
 
         result: str = await run(action)
         return result

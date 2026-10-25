@@ -8,7 +8,7 @@ from fastocr_sdk import AsyncFastOCR
 from mcp import Client
 
 from fastocr_mcp import server as server_module
-from fastocr_mcp.server import KEYS_URL, MAX_INLINE_CHARS, create_server
+from fastocr_mcp.server import BUY_PAGES_URL, KEYS_URL, MAX_INLINE_CHARS, create_server
 
 BASE_URL = "https://api.test"
 UPLOAD_URL = "https://s3.test/uploads/original.pdf?X-Amz-Signature=sig"
@@ -90,13 +90,14 @@ def mock_flow(api, job, text="Hello from page one.", start=None):
 async def test_lists_the_tools_with_descriptions():
     async with Client(create_server(factory)) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
-    assert set(tools) == {"ocr_file", "ocr_pdf", "get_document", "list_documents", "delete_document"}
+    assert set(tools) == {"ocr_file", "ocr_pdf", "get_document", "list_documents", "get_balance", "delete_document"}
     assert all(tool.description for tool in tools.values())
     assert tools["ocr_file"].input_schema["required"] == ["path"]
     assert tools["ocr_pdf"].input_schema["properties"] == tools["ocr_file"].input_schema["properties"]
     assert tools["delete_document"].annotations.destructive_hint is True
     assert tools["get_document"].annotations.read_only_hint is False
     assert tools["list_documents"].annotations.read_only_hint is True
+    assert tools["get_balance"].annotations.read_only_hint is True
 
 
 async def test_ocr_file_returns_text(api, pdf):
@@ -145,13 +146,13 @@ async def test_partial_result_says_how_to_get_the_rest(api, pdf):
     mock_flow(api, completed(status="partial", is_truncated=True, pages_billed=1, pages_total=3))
     is_error, text = await call("ocr_file", path=str(pdf))
     assert not is_error
-    assert "only 1 of 3 pages" in text and f"{KEYS_URL}#buy-api-pages" in text
+    assert "only 1 of 3 pages" in text and BUY_PAGES_URL in text
 
 
 @pytest.mark.parametrize(
     "case, expected",
     [
-        ("buy_pages", f"{KEYS_URL}#buy-api-pages"),
+        ("buy_pages", BUY_PAGES_URL),
         ("bad_key", "FASTOCR_API_KEY"),
         ("concurrency_limit", "list_documents"),
         ("unreadable", "will not help"),
@@ -210,7 +211,7 @@ async def test_get_document_status_and_text(api, tmp_path):
     api.get(f"{BASE_URL}/v1/documents/{DOC}").respond(200, json=failed("buy_pages"))
     _, status = await call("get_document", document_id=DOC)
     assert json.loads(status)["status"] == "failed"
-    assert KEYS_URL in json.loads(status)["next_step"]
+    assert BUY_PAGES_URL in json.loads(status)["next_step"]
 
     mock_flow(api, completed())
     api.get(f"{BASE_URL}/v1/documents/{DOC}").respond(200, json=completed())
@@ -222,6 +223,42 @@ async def test_get_document_status_and_text(api, tmp_path):
     api.get(f"{BASE_URL}/v1/documents/{DOC}").respond(200, json=completed(outputs={"text": {"available": True}}))
     is_error, text = await call("get_document", document_id=DOC, output="pdf")
     assert is_error and "no searchable PDF" in text
+
+
+async def test_get_balance_reports_every_balance_and_where_to_buy(api):
+    api.get(f"{BASE_URL}/v1/balance").respond(
+        200,
+        json={
+            "object": "balance",
+            "pages_remaining": 480,
+            "free_pages_per_month": 50,
+            "free_pages_remaining": 30,
+            "free_pages_reset_at": "2026-11-01T00:00:00+00:00",
+            "contract_pages_per_month": None,
+            "contract_pages_remaining": None,
+            "statement_pages_remaining": 0,
+        },
+    )
+
+    is_error, text = await call("get_balance")
+
+    assert not is_error
+    assert json.loads(text) == {
+        "pages_remaining": 480,
+        "free_pages_remaining": 30,
+        "free_pages_per_month": 50,
+        "free_pages_reset_at": "2026-11-01T00:00:00+00:00",
+        "statement_pages_remaining": 0,
+        "buy_pages_url": BUY_PAGES_URL,
+    }
+
+
+async def test_get_balance_explains_a_rejected_key(api):
+    api.get(f"{BASE_URL}/v1/balance").respond(403, json={"message": "Forbidden"})
+
+    is_error, text = await call("get_balance")
+
+    assert is_error and "FASTOCR_API_KEY" in text
 
 
 async def test_list_and_delete_documents(api):

@@ -4,6 +4,14 @@ All notable changes to this server are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [semantic versioning](https://semver.org).
 
+## [0.2.0] - 2026-10-25
+
+- New tool `get_balance`: the pages left in free, contract and Page Pack balances, and where
+  to buy more. Needs `fastocr-sdk` 0.3.0 or later.
+- Out-of-pages messages point to the pricing page for Page Packs and say "out of pages".
+  The `concurrency_limit` message states the limits: 2 documents at once, 10 with an API
+  contract or 10,000 or more pages bought.
+
 ## [0.1.1] - 2026-10-25
 
 Documentation only: a redesigned README with setup for Claude Code, Claude Desktop, Cursor

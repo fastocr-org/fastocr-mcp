@@ -129,6 +129,7 @@ The text above is the unedited output FastOCR returned for a scanned page.
 | `ocr_pdf(path, output="text", output_path=None)` | The same tool as `ocr_file` under its earlier name, kept so existing setups keep working. |
 | `get_document(document_id, output="status", output_path=None)` | Status and page counts of a document; with `output="text"` or `"pdf"`, waits up to 45 seconds and fetches the finished result. Fetching a result again costs no pages. |
 | `list_documents(limit=20)` | The most recent documents in the account, newest first. |
+| `get_balance()` | The pages left on the account: free pages (they reset monthly), contract pages if any, and Page Packs, plus the link to buy more. Costs no pages. |
 | `delete_document(document_id)` | Deletes a document and its stored files on FastOCR. Local files are not touched. |
 
 ## What you get back
@@ -148,12 +149,12 @@ The text above is the unedited output FastOCR returned for a scanned page.
 
 ## Pages and pricing
 
-Any signed-in FastOCR account can create an API key and start right away. Each account gets 50 free document pages per month; an image is one page. When you need more, buy a prepaid API page pack by card in the [developer console](https://fastocr.org/developers/keys#buy-api-pages). You accept the [API terms](https://fastocr.org/api-terms) with your first key.
+Any signed-in FastOCR account can create an API key and start right away. Every account gets 50 free pages a month, shared with PDFs on the website; an image is one page. When you need more, buy a Page Pack on the [pricing page](https://fastocr.org/pricing?from=api#packs). Packs and the page balance are the same on the website and in the API; ask your agent to run `get_balance` to see what is left. Accounts process 2 documents at once, or 10 with an API contract or 10,000 or more pages bought. You accept the [API terms](https://fastocr.org/api-terms) with your first key.
 
 <details>
 <summary>Errors and configuration</summary>
 
-Tool errors are written for the agent to act on: a rejected key, an account out of pages (`buy_pages`), too many documents processing at once (`concurrency_limit`), a missing file, or an unsupported file type. Each message says what to do next. A document that runs out of pages fails with `buy_pages`; the tool says so and links to the [developer console](https://fastocr.org/developers/keys#buy-api-pages). Error codes are listed in the [API docs](https://fastocr.org/docs/documents).
+Tool errors are written for the agent to act on: a rejected key, an account out of pages (`buy_pages`), too many documents processing at once (`concurrency_limit`), a missing file, or an unsupported file type. Each message says what to do next. A document that runs out of pages fails with `buy_pages`; the tool says so and links to the [pricing page](https://fastocr.org/pricing?from=api#packs). Error codes are listed in the [API docs](https://fastocr.org/docs/documents).
 
 | Variable | Purpose |
 |---|---|
